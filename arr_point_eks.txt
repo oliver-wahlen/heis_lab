@@ -1,0 +1,16 @@
+#include <stdio.h>
+#define N_FLOORS 3
+void check(int *arr, int size){
+    for(int i=0; i<size; i++){
+        arr[i]+=2;
+        printf("Value_new: %d \n", arr[i]);
+    }
+}
+
+int main() {
+    const int n_floors = N_FLOORS; 
+    int array[n_floors+2];
+    check(array, n_floors+2);    
+    printf("%d", array[2]);
+    return 0;
+}
