@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
-#include <unistd.h>
+#include <unistd.h> 
 #include <string.h>
 #include "driver/elevio.h"
 
@@ -16,9 +16,7 @@ void get_order(int *floors_order, int *floor_mask, int n_floors, int recent_floo
             int btnPressed = elevio_callButton(f, b);
             
             if(btnPressed){
-                
-                printf("Floor: %d Type: %d \n", f, b);
-                
+                                
                 //setter lys på
                 elevio_buttonLamp(f, b, btnPressed);
                 //legger til etasje til orderene
@@ -34,7 +32,6 @@ void get_order(int *floors_order, int *floor_mask, int n_floors, int recent_floo
                         floor_mask[f*2-1]=1;
                         break;
                     case 1:
-                        printf("Dette ble presset ned: %d \n", f);
                         if(f==(n_floors-1)){//sjekker endepunkt
                             floor_mask[n_floors*2-3]=-1;
                             break;
@@ -70,6 +67,7 @@ void get_order(int *floors_order, int *floor_mask, int n_floors, int recent_floo
 
 void move(int *floors_order, int n_floors, int recent_floor, int *direction){
     //sjekker om tom, ie ingen bestilling, og da stopper
+
     int checkempty_or_pushstart=-1;
     int lowest=n_floors;
     int highest=-1;
@@ -84,7 +82,9 @@ void move(int *floors_order, int n_floors, int recent_floor, int *direction){
             }
         }
     }
-    if(checkempty_or_pushstart!=-1){
+
+    if(checkempty_or_pushstart==-1){
+        printf("i am empty \n");
         *direction=DIRN_STOP; 
         return;
     }
@@ -97,35 +97,51 @@ void move(int *floors_order, int n_floors, int recent_floor, int *direction){
             *direction=DIRN_DOWN;
         }
     } else{
-        if (*direction==DIRN_UP && recent_floor==highest){
+        if (*direction==DIRN_UP && recent_floor==(n_floors-1)){
+            *direction=DIRN_STOP;
+        }
+        if (*direction==DIRN_DOWN && recent_floor==0){
+            *direction=DIRN_STOP;
+        }
+        else if (*direction==DIRN_UP && recent_floor==highest){
             *direction=DIRN_DOWN;
         }
-        if (*direction==DIRN_DOWN && recent_floor==lowest){
+        else if (*direction==DIRN_DOWN && recent_floor==lowest){
             *direction=DIRN_UP;
         }
     }
 }
-void pausing(){ ///FIIIXXXX
-    printf("Stopped \n");
-    sleep(2);
+void pausing(int *floors_order, int n_floors, int i, int *global_paus){ ///FIIIXXXX
+    floors_order[i]=0;
+    printf("Stopped at %d \n", i);
+    *global_paus=1;
 }
 
-void arriving(int *floors_order, int *floor_mask, int n_floors, int current_floor, int *direction){
+void arriving(int *floors_order, int *floor_mask, int n_floors, int current_floor, int *direction, int *global_paus){
     for(int i=0; i<n_floors; i++){//sjekker alle floors
         if(floors_order[i]==1 && i==current_floor){
             if(i==0){
-                floors_order[0]=0;
                 floor_mask[0]=0;
-                pausing();
+                pausing(floors_order, n_floors, i, global_paus);        
             }
             else if(i==(n_floors-1)){//altså siste etasje
-                floors_order[i]=0;
                 floor_mask[2*n_floors-3]=0;
-                pausing(); 
+                pausing(floors_order, n_floors, i, global_paus); 
             }
             else if(*direction==DIRN_UP && floor_mask[i*2-1]==1){
-                
-                pausing();
+                floor_mask[i*2]=0; //siden antar alle går av
+                floor_mask[i*2-1]=0;
+                pausing(floors_order, n_floors, i, global_paus);             
+            }
+            else if(*direction==DIRN_DOWN && floor_mask[i*2]==-1){
+                floor_mask[i*2]=0; //siden antar alle går av
+                floor_mask[i*2-1]=0;
+                pausing(floors_order, n_floors, i, global_paus);             
+            } 
+            else if(*direction==DIRN_STOP){ //hva hvis i ro hæ?
+                floor_mask[i*2]=0; //siden antar alle går av
+                floor_mask[i*2-1]=0;
+                pausing(floors_order, n_floors, i, global_paus);             
             }
         }
     }
@@ -146,21 +162,36 @@ int main(){
     int current_floor=-1;
     int recent_floor=-1;
     MotorDirection direction=DIRN_STOP;
+    int global_paus=0;
+    
     
     elevio_init();
 
-    //elevio_motorDirection(DIRN_UP);
+    
+    while (elevio_floorSensor()==-1){
+        elevio_motorDirection(DIRN_DOWN);
+    }
+    elevio_motorDirection(DIRN_STOP);
 
     while(1){
         int current_floor = elevio_floorSensor();
         if(current_floor!=-1){recent_floor=current_floor;}
+        
+        get_order(floors_order, floor_mask, n_floors, recent_floor);
+        //printf("1: %d 2: %d 3: %d 4: %d \n", floors_order[0], floors_order[1], floors_order[2], floors_order[3]);
+        //printf("a: %d b: %d c: %d d: %d e: %d f: %d \n\n", floor_mask[0], floor_mask[1], floor_mask[2], floor_mask[3], floor_mask[4], floor_mask[5]);
 
-
-        floors_order[2]=1;
+        arriving(floors_order, floor_mask, n_floors, current_floor, &direction, &global_paus);
 
         move(floors_order, n_floors, recent_floor, &direction);
         elevio_motorDirection(direction); 
+        
 
+        if(global_paus==1){
+            elevio_motorDirection(DIRN_STOP);
+            global_paus=0;
+            sleep(2); //ikke gjør dette!!!!
+        }
         //printf("Floor: %d \n", floor);
         
 

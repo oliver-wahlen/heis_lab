@@ -5,7 +5,7 @@
 
 typedef enum { 
     DIRN_DOWN   = -1,
-    DIRN_STOP   = 0,
+    DIRN_STOP   = 0, 
     DIRN_UP     = 1 
 } MotorDirection;
 
