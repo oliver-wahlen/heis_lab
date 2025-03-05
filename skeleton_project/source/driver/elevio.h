@@ -10,7 +10,7 @@ typedef enum {
 } MotorDirection;
 
 
-#define N_BUTTONS 3
+#define N_BUTTONS 3 
 
 typedef enum { 
     BUTTON_HALL_UP      = 0,

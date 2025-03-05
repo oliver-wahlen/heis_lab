@@ -84,7 +84,6 @@ void move(int *floors_order, int n_floors, int recent_floor, int *direction){
     }
 
     if(checkempty_or_pushstart==-1){
-        printf("i am empty \n");
         *direction=DIRN_STOP; 
         return;
     }
@@ -111,37 +110,40 @@ void move(int *floors_order, int n_floors, int recent_floor, int *direction){
         }
     }
 }
-void pausing(int *floors_order, int n_floors, int i, int *global_paus){ ///FIIIXXXX
+void pausing(int *floors_order, int n_floors, int i, int *global_paus, clock_t *start_time, double *time_taken){
     floors_order[i]=0;
+    elevio_motorDirection(DIRN_STOP);
     printf("Stopped at %d \n", i);
     *global_paus=1;
+    *time_taken=0;
+    *start_time=time(NULL);
 }
 
-void arriving(int *floors_order, int *floor_mask, int n_floors, int current_floor, int *direction, int *global_paus){
+void arriving(int *floors_order, int *floor_mask, int n_floors, int current_floor, int *direction, int *global_paus, clock_t *start_time, double *time_taken){
     for(int i=0; i<n_floors; i++){//sjekker alle floors
         if(floors_order[i]==1 && i==current_floor){
             if(i==0){
                 floor_mask[0]=0;
-                pausing(floors_order, n_floors, i, global_paus);        
+                pausing(floors_order, n_floors, i, global_paus, start_time, time_taken);        
             }
             else if(i==(n_floors-1)){//altså siste etasje
                 floor_mask[2*n_floors-3]=0;
-                pausing(floors_order, n_floors, i, global_paus); 
+                pausing(floors_order, n_floors, i, global_paus, start_time, time_taken); 
             }
             else if(*direction==DIRN_UP && floor_mask[i*2-1]==1){
                 floor_mask[i*2]=0; //siden antar alle går av
                 floor_mask[i*2-1]=0;
-                pausing(floors_order, n_floors, i, global_paus);             
+                pausing(floors_order, n_floors, i, global_paus, start_time, time_taken);             
             }
             else if(*direction==DIRN_DOWN && floor_mask[i*2]==-1){
                 floor_mask[i*2]=0; //siden antar alle går av
                 floor_mask[i*2-1]=0;
-                pausing(floors_order, n_floors, i, global_paus);             
+                pausing(floors_order, n_floors, i, global_paus, start_time, time_taken);             
             } 
             else if(*direction==DIRN_STOP){ //hva hvis i ro hæ?
                 floor_mask[i*2]=0; //siden antar alle går av
                 floor_mask[i*2-1]=0;
-                pausing(floors_order, n_floors, i, global_paus);             
+                pausing(floors_order, n_floors, i, global_paus, start_time, time_taken);             
             }
         }
     }
@@ -162,12 +164,27 @@ int main(){
     int current_floor=-1;
     int recent_floor=-1;
     MotorDirection direction=DIRN_STOP;
-    int global_paus=0;
     
+    int global_paus=0;
+    clock_t start_time, end_time;
+    double time_taken;
     
     elevio_init();
 
-    
+    //sette alle lys til 0
+    for(int f = 0; f < N_FLOORS; f++){
+        for(int b = 0; b < N_BUTTONS; b++){
+            int btnPressed = elevio_callButton(f, b);
+            //if(btnPressed){
+            //    printf("Floor: %d Type: %d \n", f, b);
+            //}    
+                
+            elevio_buttonLamp(f, b, btnPressed);
+        }
+    }
+    elevio_doorOpenLamp(0);
+
+    //finne etasje
     while (elevio_floorSensor()==-1){
         elevio_motorDirection(DIRN_DOWN);
     }
@@ -176,22 +193,38 @@ int main(){
     while(1){
         int current_floor = elevio_floorSensor();
         if(current_floor!=-1){recent_floor=current_floor;}
+        elevio_floorIndicator(recent_floor);
         
         get_order(floors_order, floor_mask, n_floors, recent_floor);
         //printf("1: %d 2: %d 3: %d 4: %d \n", floors_order[0], floors_order[1], floors_order[2], floors_order[3]);
         //printf("a: %d b: %d c: %d d: %d e: %d f: %d \n\n", floor_mask[0], floor_mask[1], floor_mask[2], floor_mask[3], floor_mask[4], floor_mask[5]);
 
-        arriving(floors_order, floor_mask, n_floors, current_floor, &direction, &global_paus);
 
-        move(floors_order, n_floors, recent_floor, &direction);
-        elevio_motorDirection(direction); 
         
+        //bevegelses modus
+        if(global_paus == 0){
+            arriving(floors_order, floor_mask, n_floors, current_floor, &direction, &global_paus, &start_time, &time_taken);
 
-        if(global_paus==1){
-            elevio_motorDirection(DIRN_STOP);
-            global_paus=0;
-            sleep(2); //ikke gjør dette!!!!
+            move(floors_order, n_floors, recent_floor, &direction);
+            elevio_motorDirection(direction); 
+        } else { //stoppe modus
+            elevio_doorOpenLamp(1);  
+            if(elevio_obstruction()){
+                start_time=time(NULL);
+            }
+            end_time=time(NULL);
+            time_taken = difftime(end_time, start_time);
         }
+        //sjekke om skal bevege igjen
+        if(time_taken>=3){
+            elevio_buttonLamp(recent_floor, BUTTON_CAB, 0);
+            elevio_buttonLamp(recent_floor, BUTTON_HALL_DOWN, 0);
+            elevio_buttonLamp(recent_floor, BUTTON_HALL_UP, 0);
+            global_paus=0;
+            elevio_doorOpenLamp(0);
+        }
+
+
         //printf("Floor: %d \n", floor);
         
 
