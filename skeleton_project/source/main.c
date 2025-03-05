@@ -113,7 +113,6 @@ void move(int *floors_order, int n_floors, int recent_floor, int *direction){
 void pausing(int *floors_order, int n_floors, int i, int *global_paus, clock_t *start_time, double *time_taken){
     floors_order[i]=0;
     elevio_motorDirection(DIRN_STOP);
-    printf("Stopped at %d \n", i);
     *global_paus=1;
     *time_taken=0;
     *start_time=time(NULL);
@@ -164,10 +163,13 @@ int main(){
     int current_floor=-1;
     int recent_floor=-1;
     MotorDirection direction=DIRN_STOP;
+    MotorDirection last_direction=DIRN_STOP;
     
     int global_paus=0;
     clock_t start_time, end_time;
     double time_taken;
+
+    int check_stop=0;
     
     elevio_init();
 
@@ -183,6 +185,7 @@ int main(){
         }
     }
     elevio_doorOpenLamp(0);
+    elevio_stopLamp(0);
 
     //finne etasje
     while (elevio_floorSensor()==-1){
@@ -191,16 +194,62 @@ int main(){
     elevio_motorDirection(DIRN_STOP);
 
     while(1){
+        
         int current_floor = elevio_floorSensor();
         if(current_floor!=-1){recent_floor=current_floor;}
         elevio_floorIndicator(recent_floor);
         
+        // stoppknap
+        while(elevio_stopButton()){
+            last_direction=direction;
+            if(current_floor!=-1){
+                elevio_doorOpenLamp(1);
+                pausing(floors_order, n_floors, current_floor, &global_paus, &start_time, &time_taken);
+            }
+            elevio_stopLamp(1);
+            elevio_motorDirection(DIRN_STOP);
+            memset(floors_order, 0, sizeof(floors_order));
+            memset(floor_mask, 0, sizeof(floor_mask));
+            for(int f = 0; f < N_FLOORS; f++){
+                for(int b = 0; b < N_BUTTONS; b++){
+                    int btnPressed = elevio_callButton(f, b);
+                    //if(btnPressed){
+                    //    printf("Floor: %d Type: %d \n", f, b);
+                    //}    
+                        
+                    elevio_buttonLamp(f, b, btnPressed);
+                }
+            }
+        check_stop=1;
+        }
+        elevio_stopLamp(0);
+
         get_order(floors_order, floor_mask, n_floors, recent_floor);
         //printf("1: %d 2: %d 3: %d 4: %d \n", floors_order[0], floors_order[1], floors_order[2], floors_order[3]);
         //printf("a: %d b: %d c: %d d: %d e: %d f: %d \n\n", floor_mask[0], floor_mask[1], floor_mask[2], floor_mask[3], floor_mask[4], floor_mask[5]);
 
+        //handle stoppe midt mellom
+        if(check_stop && current_floor!=recent_floor){
+            printf("Startet\n");
+            printf("direction: %d\n", last_direction);
+            if(floors_order[recent_floor] && last_direction==DIRN_DOWN){
+                recent_floor-=1;
+                check_stop=0;
+            }
+            if(floors_order[recent_floor] && last_direction==DIRN_UP){
+                recent_floor+=1;
+                check_stop=0;
+            } 
+            for(int i=0; i<n_floors; i++){
+                if(floors_order[i]!=0){
+                    check_stop=0;
+                }
+            }
+        } 
 
-        
+        //if(current_floor!=recent_floor && floors_order[recent_floor]==1)
+
+
         //bevegelses modus
         if(global_paus == 0){
             arriving(floors_order, floor_mask, n_floors, current_floor, &direction, &global_paus, &start_time, &time_taken);
@@ -208,6 +257,7 @@ int main(){
             move(floors_order, n_floors, recent_floor, &direction);
             elevio_motorDirection(direction); 
         } else { //stoppe modus
+            elevio_motorDirection(DIRN_STOP);
             elevio_doorOpenLamp(1);  
             if(elevio_obstruction()){
                 start_time=time(NULL);
@@ -272,6 +322,7 @@ int main(){
         */
 
         //adjust to decrease delay
+    
         nanosleep(&(struct timespec){0, 1000}, NULL);
     }
     
