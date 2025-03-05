@@ -230,8 +230,6 @@ int main(){
 
         //handle stoppe midt mellom
         if(check_stop && current_floor!=recent_floor){
-            printf("Startet\n");
-            printf("direction: %d\n", last_direction);
             if(floors_order[recent_floor] && last_direction==DIRN_DOWN){
                 recent_floor-=1;
                 check_stop=0;
