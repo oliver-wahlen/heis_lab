@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "elevio.h": "c",
+        "signal.h": "c"
+    }
+}
